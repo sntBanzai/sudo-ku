@@ -42,9 +42,6 @@ public class Validator {
 			for (int y = 0; y < 3; y++) {
 				int iStartInclusive = i == 0 ? 0 : (i * 3);
 				int yStartInclusive = y == 0 ? 0 : (y * 3);
-				List<int[]> collect2 = IntStream.range(iStartInclusive, iStartInclusive + 3)
-				.mapToObj(iStart -> IntStream.range(yStartInclusive, yStartInclusive + 3)
-						.mapToObj(yStart -> new int[] { iStart, yStart })).flatMap(Function.identity()).collect(Collectors.toList());
 				
 				Set<SudokuElement> collect = IntStream.range(iStartInclusive, iStartInclusive + 3)
 						.mapToObj(iStart -> IntStream.range(yStartInclusive, yStartInclusive + 3)
