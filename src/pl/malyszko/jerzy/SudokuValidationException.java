@@ -2,8 +2,9 @@ package pl.malyszko.jerzy;
 
 public class SudokuValidationException extends RuntimeException {
 
-	public SudokuValidationException(String message) {
+	public SudokuValidationException(Sudoku sudoku, String message) {
 		super(message);
+		System.err.println(sudoku);
 	}
 
 	

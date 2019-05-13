@@ -39,8 +39,8 @@ public class Sudoku {
 		elements[xaxis][yaxis] = sel;
 		boolean validate = Validator.validate(this);
 		if (!validate)
-			throw new SudokuValidationException(
-					String.valueOf(yaxis+1) + ':' + String.valueOf(xaxis+1) + '=' + sel.toString());
+			throw new SudokuValidationException(this,
+					String.valueOf(yaxis + 1) + ':' + String.valueOf(xaxis + 1) + '=' + sel.toString());
 	}
 
 	public SudokuElement getElement(int xaxis, int yaxis) {

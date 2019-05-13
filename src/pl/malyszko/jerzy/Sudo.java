@@ -20,9 +20,11 @@ public class Sudo {
 		uncharted = collectUncharted(s);
 		int unchartedSize = uncharted.size();
 		do {
-			ListIterator<Entry<Coord, Set<SudokuElement>>> iterator = uncharted.entrySet().stream()
+			List<Entry<Coord, Set<SudokuElement>>> ls = uncharted.entrySet().stream()
 					.sorted((ent, ent2) -> Integer.compare(ent2.getValue().size(), ent.getValue().size()))
-					.collect(Collectors.toList()).listIterator();
+					.collect(Collectors.toList());
+
+			ListIterator<Entry<Coord, Set<SudokuElement>>> iterator = ls.listIterator();
 
 			breakpoint: while (iterator.hasNext()) {
 				Entry<Coord, Set<SudokuElement>> next = iterator.next();
@@ -32,13 +34,31 @@ public class Sudo {
 					break breakpoint;
 				}
 			}
+
 			if (unchartedSize == uncharted.size()) {
 				System.err.println("Unable to resolve");
 				break;
 			} else {
 				unchartedSize = uncharted.size();
+				actualizeUncharted(s);
+				System.out.println(s);
 			}
 		} while (!uncharted.isEmpty());
+	}
+
+	private static void actualizeUncharted(Sudoku s) {
+		uncharted.entrySet().stream()
+				.forEach(ent -> uncharted.compute(ent.getKey(), (coo, old) -> gatherNonEmptyPeers(s, coo)));
+	}
+
+	static Set<Coord> getPossibleLocations(Sudoku s, SudokuElement el) {
+		Set<Coord> retVal = IntStream.range(0, 9).mapToObj(i -> IntStream.range(0, 9).mapToObj(y -> Coord.get(i, y)))
+				.flatMap(Function.identity())
+				.filter(coo -> getGroupMembers(coo).stream().map(c -> s.getElement(c.xcoo, c.ycoo))
+						.filter(sel -> !sel.equals(SudokuElement.EMPTY)).noneMatch(sel -> sel.equals(el)))
+				.filter(coo -> s.getElement(coo.xcoo, coo.ycoo).equals(SudokuElement.EMPTY))
+				.collect(Collectors.toSet());
+		return retVal;
 	}
 
 	private static boolean attemptToAssign(Entry<Coord, Set<SudokuElement>> ent, Sudoku s) {
@@ -46,7 +66,9 @@ public class Sudo {
 		Set<Integer> missing = IntStream.range(1, 10).filter(i -> !alreadyThere.contains(i)).boxed()
 				.collect(Collectors.toSet());
 		if (missing.size() == 1) {
-			s.setElement(ent.getKey().xcoo, ent.getKey().ycoo, SudokuElement.translate(missing.iterator().next()));
+			Integer next = missing.iterator().next();
+			s.setElement(ent.getKey().xcoo, ent.getKey().ycoo, SudokuElement.translate(next));
+			System.out.println(ent.getKey() + " === " + next);
 			return true;
 		}
 		Set<Coord> othersMissing = getOtherPeersMissing(ent.getKey());
@@ -65,9 +87,37 @@ public class Sudo {
 				for (int y = 0; y < 9; y++) {
 					int ordinal = s.getElement(i, y).ordinal();
 					if (ordinal == miss) {
-
+						forbidden.addAll(getGroupMembers(Coord.get(i, y)).stream().filter(othersMissing::contains)
+								.collect(Collectors.toSet()));
 					}
 				}
+			}
+			Set<Coord> possibleLocations = getPossibleLocations(s, SudokuElement.translate(miss));
+			Set<Coord> stillMissing = othersMissing.stream()
+					.collect(Collectors.filtering(coo -> !forbidden.contains(coo), Collectors.toSet()));
+
+			if (stillMissing.size() == 1) {
+				Coord coord = stillMissing.iterator().next();
+				System.out.println(coord + " === " + miss);
+				s.setElement(coord.xcoo, coord.ycoo, SudokuElement.translate(miss));
+				return true;
+			}
+			if (forbidden.isEmpty())
+				continue;
+			Set<Coord> possibleAlternatives = othersMissing.stream()
+					.collect(Collectors.filtering(coo -> forbidden.contains(coo), Collectors.toSet()));
+			if (possibleAlternatives.size() == 1) {
+				// Set<Integer> collect = new HashSet<>(missing);
+				Coord alt = possibleAlternatives.iterator().next();
+				Set<Coord> alternativeForAlternative = getOtherPeersMissing(alt).stream()
+						.filter(pm -> !uncharted.get(pm).contains(SudokuElement.translate(miss)))
+						.collect(Collectors.toSet());
+				if (alternativeForAlternative.isEmpty()) {
+					System.out.println(ent.getKey() + " === " + miss);
+					s.setElement(ent.getKey().xcoo, ent.getKey().ycoo, SudokuElement.translate(miss));
+				}
+
+				return true;
 			}
 		}
 
@@ -101,23 +151,17 @@ public class Sudo {
 				.collect(Collectors.toList());
 
 		for (Coord coord : collect) {
-			Stream<SudokuElement> concatEins = IntStream.range(0, 9).filter(i -> i != coord.xcoo)
-					.mapToObj(i -> s.getElement(i, coord.ycoo));
-			Stream<SudokuElement> concatZwei = IntStream.range(0, 9).filter(i -> i != coord.ycoo)
-					.mapToObj(i -> s.getElement(coord.xcoo, i));
-			int iStartInclusive = coord.xcoo - (coord.xcoo % 3);
-			int yStartInclusive = coord.ycoo - (coord.ycoo % 3);
-			Stream<SudokuElement> concatDrei = IntStream.range(iStartInclusive, iStartInclusive + 3)
-					.mapToObj(iStart -> IntStream.range(yStartInclusive, yStartInclusive + 3)
-							.mapToObj(yStart -> new int[] { iStart, yStart }))
-					.flatMap(Function.identity()).map(tab -> s.getElement(tab[0], tab[1]));
-
-			Set<SudokuElement> collected = Stream.concat(concatEins, Stream.concat(concatZwei, concatDrei))
-					.filter(se -> !SudokuElement.EMPTY.equals(se)).collect(Collectors.toSet());
+			Set<SudokuElement> collected = gatherNonEmptyPeers(s, coord);
 			retVal.put(coord, collected);
 		}
 
 		return retVal;
+	}
+
+	private static Set<SudokuElement> gatherNonEmptyPeers(final Sudoku s, Coord coord) {
+		Set<SudokuElement> collected = getGroupMembers(coord).stream().map(gm -> s.getElement(gm.xcoo, gm.ycoo))
+				.filter(se -> !SudokuElement.EMPTY.equals(se)).collect(Collectors.toSet());
+		return collected;
 	}
 
 }
