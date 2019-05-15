@@ -20,6 +20,10 @@ public class Sudoku {
 		this(input.split(";"));
 	}
 
+	Sudoku(SudokuElement[][] el) {
+		this.elements = el;
+	}
+
 	public Sudoku(String... chunks) {
 		this();
 		for (String string : chunks) {
